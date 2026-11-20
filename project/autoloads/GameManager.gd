@@ -15,7 +15,9 @@ var qris_unlocked: bool = false
 var fan_upgrade_level: int = 1
 var second_wok_unlocked: bool = false
 var cashier_hired: bool = false
-var decor_level: int = 1 # 1: Gerobak, 2: Etalase Kaca, 3: Neon Box Viral
+var decor_level: int = 1
+var drinks_unlocked: bool = false
+var pending_kasbon: int = 0
 
 var daily_revenue: int = 0
 var daily_expense: int = 0
@@ -36,6 +38,31 @@ func load_default_toppings() -> void:
 			toppings = parsed["toppings"]
 		file.close()
 
+func reset_progress() -> void:
+	if FileAccess.file_exists(SAVE_PATH):
+		DirAccess.remove_absolute(SAVE_PATH)
+	money = 50000
+	day = 1
+	reputation = 100
+	stove_upgrade_level = 1
+	qris_unlocked = false
+	fan_upgrade_level = 1
+	second_wok_unlocked = false
+	cashier_hired = false
+	decor_level = 1
+	drinks_unlocked = false
+	pending_kasbon = 0
+	daily_revenue = 0
+	daily_expense = 0
+	daily_customers_served = 0
+	customers_per_day = 6
+	load_default_toppings()
+	save_game()
+	emit_signal("money_changed", money)
+	emit_signal("day_changed", day)
+	emit_signal("stats_updated")
+	emit_signal("stock_updated")
+
 func save_game() -> void:
 	var stock_map = {}
 	for t in toppings:
@@ -51,6 +78,8 @@ func save_game() -> void:
 		"second_wok_unlocked": second_wok_unlocked,
 		"cashier_hired": cashier_hired,
 		"decor_level": decor_level,
+		"drinks_unlocked": drinks_unlocked,
+		"pending_kasbon": pending_kasbon,
 		"stock_map": stock_map
 	}
 	var file = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
@@ -74,6 +103,8 @@ func load_game() -> void:
 			second_wok_unlocked = bool(parsed.get("second_wok_unlocked", false))
 			cashier_hired = bool(parsed.get("cashier_hired", false))
 			decor_level = int(parsed.get("decor_level", 1))
+			drinks_unlocked = bool(parsed.get("drinks_unlocked", false))
+			pending_kasbon = int(parsed.get("pending_kasbon", 0))
 			var stock_map = parsed.get("stock_map", {})
 			for t in toppings:
 				if stock_map.has(t["id"]):
@@ -81,8 +112,8 @@ func load_game() -> void:
 		file.close()
 
 func get_shop_rank() -> String:
-	var score = stove_upgrade_level + fan_upgrade_level + decor_level + (2 if second_wok_unlocked else 0) + (2 if cashier_hired else 0)
-	if score >= 10:
+	var score = stove_upgrade_level + fan_upgrade_level + decor_level + (2 if second_wok_unlocked else 0) + (2 if cashier_hired else 0) + (1 if drinks_unlocked else 0)
+	if score >= 11:
 		return "Legenda Seblak Nusantara"
 	elif score >= 7:
 		return "Ruko Seblak Viral 24 Jam"
@@ -150,6 +181,15 @@ func unlock_qris() -> bool:
 		return true
 	return false
 
+func unlock_drinks() -> bool:
+	if drinks_unlocked:
+		return false
+	if spend_money(45000, true):
+		drinks_unlocked = true
+		emit_signal("stats_updated")
+		return true
+	return false
+
 func upgrade_fan() -> bool:
 	var cost = fan_upgrade_level * 25000
 	if spend_money(cost, true):
@@ -186,7 +226,13 @@ func upgrade_decor() -> bool:
 		return true
 	return false
 
-func start_next_day() -> void:
+func start_next_day() -> int:
+	var paid_kasbon = 0
+	if pending_kasbon > 0:
+		paid_kasbon = pending_kasbon * 2
+		money += paid_kasbon
+		pending_kasbon = 0
+
 	var daily_rent = 15000 + (5000 if cashier_hired else 0)
 	money = max(0, money - daily_rent)
 	day += 1
@@ -197,3 +243,4 @@ func start_next_day() -> void:
 	emit_signal("day_changed", day)
 	emit_signal("money_changed", money)
 	save_game()
+	return paid_kasbon
