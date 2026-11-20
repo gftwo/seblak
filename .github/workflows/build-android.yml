@@ -18,7 +18,7 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Export Templates & Android Keystore
         run: |
@@ -44,10 +44,11 @@ jobs:
       - name: Export APK
         run: |
           cd project
-          godot --headless --verbose --export-debug "Android" ../build/android/${EXPORT_NAME}.apk
+          godot --headless --verbose --export-debug "Android" ../build/android/SeblakPrasmananSimulator.apk
 
       - name: Upload APK Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: SeblakPrasmanan-APK
-          path: build/android/${EXPORT_NAME}.apk
+          path: build/android/SeblakPrasmananSimulator.apk
+          if-no-files-found: error
