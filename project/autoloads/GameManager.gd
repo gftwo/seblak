@@ -14,6 +14,8 @@ var stove_upgrade_level: int = 1
 var qris_unlocked: bool = false
 var fan_upgrade_level: int = 1
 var second_wok_unlocked: bool = false
+var cashier_hired: bool = false
+var decor_level: int = 1 # 1: Gerobak, 2: Etalase Kaca, 3: Neon Box Viral
 
 var daily_revenue: int = 0
 var daily_expense: int = 0
@@ -47,6 +49,8 @@ func save_game() -> void:
 		"qris_unlocked": qris_unlocked,
 		"fan_upgrade_level": fan_upgrade_level,
 		"second_wok_unlocked": second_wok_unlocked,
+		"cashier_hired": cashier_hired,
+		"decor_level": decor_level,
 		"stock_map": stock_map
 	}
 	var file = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
@@ -68,11 +72,23 @@ func load_game() -> void:
 			qris_unlocked = bool(parsed.get("qris_unlocked", false))
 			fan_upgrade_level = int(parsed.get("fan_upgrade_level", 1))
 			second_wok_unlocked = bool(parsed.get("second_wok_unlocked", false))
+			cashier_hired = bool(parsed.get("cashier_hired", false))
+			decor_level = int(parsed.get("decor_level", 1))
 			var stock_map = parsed.get("stock_map", {})
 			for t in toppings:
 				if stock_map.has(t["id"]):
 					t["stock"] = int(stock_map[t["id"]])
 		file.close()
+
+func get_shop_rank() -> String:
+	var score = stove_upgrade_level + fan_upgrade_level + decor_level + (2 if second_wok_unlocked else 0) + (2 if cashier_hired else 0)
+	if score >= 10:
+		return "Legenda Seblak Nusantara"
+	elif score >= 7:
+		return "Ruko Seblak Viral 24 Jam"
+	elif score >= 4:
+		return "Kedai Seblak Hits"
+	return "Gerobak Pinggir Jalan"
 
 func add_money(amount: int, is_revenue: bool = true) -> void:
 	money += amount
@@ -151,11 +167,30 @@ func unlock_second_wok() -> bool:
 		return true
 	return false
 
+func hire_cashier() -> bool:
+	if cashier_hired:
+		return false
+	if spend_money(120000, true):
+		cashier_hired = true
+		emit_signal("stats_updated")
+		return true
+	return false
+
+func upgrade_decor() -> bool:
+	if decor_level >= 3:
+		return false
+	var cost = decor_level * 50000
+	if spend_money(cost, true):
+		decor_level += 1
+		emit_signal("stats_updated")
+		return true
+	return false
+
 func start_next_day() -> void:
-	var daily_rent = 15000
+	var daily_rent = 15000 + (5000 if cashier_hired else 0)
 	money = max(0, money - daily_rent)
 	day += 1
-	customers_per_day = min(12, 5 + day)
+	customers_per_day = min(14, 5 + day)
 	daily_revenue = 0
 	daily_expense = 0
 	daily_customers_served = 0

@@ -3,25 +3,23 @@ extends Node2D
 enum WokState { EMPTY, COOKING, READY, BURNT }
 enum CustomerPhase { NONE, WALKING_TO_BUFFET, PICKING_TOPPINGS, WAITING_FOOD, PAYING_CASHIER, LEAVING }
 
-# Kelas Data Pesanan
 class SeblakOrder:
 	var cust_name: String
 	var items: Array
 	var chili_req: int
 	var price: int
 	var is_ojol: bool
+	var is_vlogger: bool
 
-# State 2 Wajan Independen
 var woks: Array = [
 	{ "state": WokState.EMPTY, "progress": 0.0, "chili": 0, "order": null },
 	{ "state": WokState.EMPTY, "progress": 0.0, "chili": 0, "order": null }
 ]
 var cook_duration: float = 5.5
 
-# State Pembeli & Antrean Meja
 var cust_phase: CustomerPhase = CustomerPhase.NONE
 var current_order: SeblakOrder = null
-var waiting_orders: Array = [] # Antrean mangkuk siap dimasak
+var waiting_orders: Array = []
 var ready_to_pay_order: SeblakOrder = null
 var ready_chili_used: int = 0
 
@@ -34,16 +32,21 @@ var spawn_timer: float = 1.5
 var phase_timer: float = 0.0
 var day_ended: bool = false
 
-# Sistem Cuaca (Hujan bikin pembeli ramai & bonus)
+# Event Cuaca & Viral Food Vlogger
 var is_raining: bool = false
 var weather_timer: float = 18.0
 var rain_particles: Array = []
+var viral_boost_timer: float = 0.0
 
 # Visual 2.5D Nodes
 var bg_rect: ColorRect
 var world_container: Node2D
 var player_avatar: Node2D
+var cashier_avatar: Node2D
 var customer_avatar: Node2D
+var glass_showcase: Polygon2D
+var neon_sign_bg: Polygon2D
+var banner_label: Label
 var wok_visuals: Array = []
 var cust_bubble: Label
 var target_pos: Vector2 = Vector2.ZERO
@@ -51,6 +54,7 @@ var target_pos: Vector2 = Vector2.ZERO
 # UI References
 var lbl_money: Label
 var lbl_day: Label
+var lbl_rank: Label
 var lbl_weather: Label
 var lbl_status: Label
 var lbl_queue_info: Label
@@ -62,9 +66,10 @@ var btn_upgrade_stove: Button
 var btn_upgrade_fan: Button
 var btn_unlock_qris: Button
 var btn_unlock_wok2: Button
+var btn_hire_cashier: Button
+var btn_upgrade_decor: Button
 var btn_mute: Button
 
-# Cashier & Summary Modals
 var cashier_panel: PanelContainer
 var lbl_cashier_detail: Label
 var btn_cashier_opt1: Button
@@ -76,7 +81,7 @@ var lbl_summary_text: Label
 
 var customer_names = [
 	"Neng Geulis", "Bocil Epep", "Ibu RT", "Mahasiswa Kos", 
-	"Food Vlogger", "Teh Dinnar", "Mang Ujang", "Aa Bandung", "Teteh Kantor"
+	"Teh Dinnar", "Mang Ujang", "Aa Bandung", "Teteh Kantor"
 ]
 
 var shirt_colors = [
@@ -149,13 +154,20 @@ func build_isometric_world() -> void:
 	wall_right.color = Color("#9C6644")
 	add_child(wall_right)
 
-	var banner = Label.new()
-	banner.text = "SEBLAK PRASMANAN JUARA"
-	banner.position = Vector2(430, 165)
-	banner.rotation = -0.42
-	banner.add_theme_font_size_override("font_size", 18)
-	banner.add_theme_color_override("font_color", Color("#FFD166"))
-	add_child(banner)
+	# Neon Box Background (Muncul saat decor_level >= 3)
+	neon_sign_bg = Polygon2D.new()
+	neon_sign_bg.polygon = PackedVector2Array([Vector2(415, 195), Vector2(615, 102), Vector2(615, 138), Vector2(415, 231)])
+	neon_sign_bg.color = Color("#FF006E")
+	neon_sign_bg.visible = false
+	add_child(neon_sign_bg)
+
+	banner_label = Label.new()
+	banner_label.text = "SEBLAK PRASMANAN JUARA"
+	banner_label.position = Vector2(425, 168)
+	banner_label.rotation = -0.42
+	banner_label.add_theme_font_size_override("font_size", 18)
+	banner_label.add_theme_color_override("font_color", Color("#FFD166"))
+	add_child(banner_label)
 
 	world_container = Node2D.new()
 	world_container.y_sort_enabled = true
@@ -180,6 +192,13 @@ func build_isometric_world() -> void:
 		tray.color = bowl_colors[idx]
 		buffet_node.add_child(tray)
 
+	# Etalase Kaca Chiller (Muncul saat decor_level >= 2)
+	glass_showcase = Polygon2D.new()
+	glass_showcase.polygon = PackedVector2Array([Vector2(-110, 10), Vector2(90, -80), Vector2(90, -110), Vector2(-110, -20)])
+	glass_showcase.color = Color(0.7, 0.95, 1.0, 0.28)
+	glass_showcase.visible = false
+	buffet_node.add_child(glass_showcase)
+
 	# Meja Dapur 2 Wajan 2.5D
 	var kitchen_node = Node2D.new()
 	kitchen_node.position = Vector2(780, 390)
@@ -190,7 +209,6 @@ func build_isometric_world() -> void:
 	stove_body.color = Color("#3D405B")
 	kitchen_node.add_child(stove_body)
 
-	# Visual Wajan 1 & Wajan 2
 	var wok_offsets = [Vector2(-35, -5), Vector2(35, -38)]
 	for w_idx in range(2):
 		var off = wok_offsets[w_idx]
@@ -217,6 +235,12 @@ func build_isometric_world() -> void:
 	player_avatar.position = Vector2(855, 340)
 	world_container.add_child(player_avatar)
 
+	# Karyawan Kasir Otomatis (Muncul setelah direkrut)
+	cashier_avatar = create_25d_character(Color("#00BBF9"), "KASIR (AUTO)")
+	cashier_avatar.position = Vector2(675, 260)
+	cashier_avatar.visible = false
+	world_container.add_child(cashier_avatar)
+
 	customer_avatar = create_25d_character(Color("#457B9D"), "Pembeli")
 	customer_avatar.position = Vector2(180, 520)
 	customer_avatar.visible = false
@@ -228,7 +252,6 @@ func build_isometric_world() -> void:
 	cust_bubble.add_theme_color_override("font_color", Color("#FFE66D"))
 	customer_avatar.add_child(cust_bubble)
 
-	# Partikel Hujan Isometrik
 	for r in range(35):
 		var drop = ColorRect.new()
 		drop.size = Vector2(2, 14)
@@ -243,42 +266,45 @@ func build_ui() -> void:
 	var ui_layer = CanvasLayer.new()
 	add_child(ui_layer)
 
-	# TOP HUD
 	var top_panel = PanelContainer.new()
 	top_panel.position = Vector2(20, 12)
 	top_panel.custom_minimum_size = Vector2(1240, 54)
 	ui_layer.add_child(top_panel)
 
 	var top_hbox = HBoxContainer.new()
-	top_hbox.add_theme_constant_override("separation", 22)
+	top_hbox.add_theme_constant_override("separation", 18)
 	top_panel.add_child(top_hbox)
 
 	lbl_day = Label.new()
-	lbl_day.add_theme_font_size_override("font_size", 20)
+	lbl_day.add_theme_font_size_override("font_size", 18)
 	top_hbox.add_child(lbl_day)
 
 	lbl_money = Label.new()
-	lbl_money.add_theme_font_size_override("font_size", 20)
+	lbl_money.add_theme_font_size_override("font_size", 19)
 	lbl_money.add_theme_color_override("font_color", Color("#80ED99"))
 	top_hbox.add_child(lbl_money)
 
+	lbl_rank = Label.new()
+	lbl_rank.add_theme_font_size_override("font_size", 16)
+	lbl_rank.add_theme_color_override("font_color", Color("#F72585"))
+	top_hbox.add_child(lbl_rank)
+
 	lbl_weather = Label.new()
-	lbl_weather.add_theme_font_size_override("font_size", 18)
+	lbl_weather.add_theme_font_size_override("font_size", 16)
 	lbl_weather.text = "Cuaca: CERAH"
 	top_hbox.add_child(lbl_weather)
 
 	lbl_status = Label.new()
-	lbl_status.add_theme_font_size_override("font_size", 17)
+	lbl_status.add_theme_font_size_override("font_size", 16)
 	lbl_status.text = "Warung Seblak Buka!"
 	top_hbox.add_child(lbl_status)
 
 	btn_mute = Button.new()
 	btn_mute.text = "SFX: ON"
-	btn_mute.custom_minimum_size = Vector2(90, 36)
+	btn_mute.custom_minimum_size = Vector2(85, 36)
 	btn_mute.pressed.connect(_on_toggle_mute)
 	top_hbox.add_child(btn_mute)
 
-	# PANEL KIRI: ANTREAN MANGKUK PRASMANAN & OJOL
 	var cust_panel = PanelContainer.new()
 	cust_panel.position = Vector2(20, 78)
 	cust_panel.custom_minimum_size = Vector2(335, 310)
@@ -305,7 +331,6 @@ func build_ui() -> void:
 	lbl_queue_info.text = "Menunggu pembeli mengambil topping di rak prasmanan..."
 	cust_vbox.add_child(lbl_queue_info)
 
-	# PANEL BAWAH TENGAH: 2 WAJAN SEBLAK
 	var woks_hbox = HBoxContainer.new()
 	woks_hbox.position = Vector2(20, 495)
 	woks_hbox.add_theme_constant_override("separation", 14)
@@ -360,51 +385,59 @@ func build_ui() -> void:
 			"lbl_chili": lbl_c, "btn_chili": b_chili, "btn_act": b_act
 		})
 
-	# PANEL KANAN: GROSIR & UPGRADE
 	var shop_panel = PanelContainer.new()
 	shop_panel.position = Vector2(900, 78)
 	shop_panel.custom_minimum_size = Vector2(360, 622)
 	ui_layer.add_child(shop_panel)
 
 	var shop_vbox = VBoxContainer.new()
-	shop_vbox.add_theme_constant_override("separation", 5)
+	shop_vbox.add_theme_constant_override("separation", 4)
 	shop_panel.add_child(shop_vbox)
 
 	var shop_title = Label.new()
-	shop_title.text = "GROSIR TOPPING & UPGRADE"
-	shop_title.add_theme_font_size_override("font_size", 17)
+	shop_title.text = "GROSIR, UPGRADE & KARYAWAN"
+	shop_title.add_theme_font_size_override("font_size", 16)
 	shop_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	shop_vbox.add_child(shop_title)
 
 	btn_unlock_wok2 = Button.new()
-	btn_unlock_wok2.custom_minimum_size = Vector2(0, 36)
+	btn_unlock_wok2.custom_minimum_size = Vector2(0, 32)
 	btn_unlock_wok2.pressed.connect(_on_unlock_wok2_pressed)
 	shop_vbox.add_child(btn_unlock_wok2)
 
+	btn_hire_cashier = Button.new()
+	btn_hire_cashier.custom_minimum_size = Vector2(0, 32)
+	btn_hire_cashier.pressed.connect(_on_hire_cashier_pressed)
+	shop_vbox.add_child(btn_hire_cashier)
+
+	btn_upgrade_decor = Button.new()
+	btn_upgrade_decor.custom_minimum_size = Vector2(0, 32)
+	btn_upgrade_decor.pressed.connect(_on_upgrade_decor_pressed)
+	shop_vbox.add_child(btn_upgrade_decor)
+
 	btn_upgrade_stove = Button.new()
-	btn_upgrade_stove.custom_minimum_size = Vector2(0, 36)
+	btn_upgrade_stove.custom_minimum_size = Vector2(0, 32)
 	btn_upgrade_stove.pressed.connect(_on_upgrade_stove_pressed)
 	shop_vbox.add_child(btn_upgrade_stove)
 
 	btn_upgrade_fan = Button.new()
-	btn_upgrade_fan.custom_minimum_size = Vector2(0, 36)
+	btn_upgrade_fan.custom_minimum_size = Vector2(0, 32)
 	btn_upgrade_fan.pressed.connect(_on_upgrade_fan_pressed)
 	shop_vbox.add_child(btn_upgrade_fan)
 
 	btn_unlock_qris = Button.new()
-	btn_unlock_qris.custom_minimum_size = Vector2(0, 36)
+	btn_unlock_qris.custom_minimum_size = Vector2(0, 32)
 	btn_unlock_qris.pressed.connect(_on_unlock_qris_pressed)
 	shop_vbox.add_child(btn_unlock_qris)
 
 	var scroll = ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(340, 410)
+	scroll.custom_minimum_size = Vector2(340, 355)
 	shop_vbox.add_child(scroll)
 
 	restock_container = VBoxContainer.new()
-	restock_container.add_theme_constant_override("separation", 5)
+	restock_container.add_theme_constant_override("separation", 4)
 	scroll.add_child(restock_container)
 
-	# MODAL KASIR
 	cashier_panel = PanelContainer.new()
 	cashier_panel.position = Vector2(400, 155)
 	cashier_panel.custom_minimum_size = Vector2(450, 270)
@@ -444,7 +477,6 @@ func build_ui() -> void:
 	btn_cashier_opt3.custom_minimum_size = Vector2(130, 50)
 	cash_btns.add_child(btn_cashier_opt3)
 
-	# MODAL LAPORAN MALAM
 	summary_panel = PanelContainer.new()
 	summary_panel.position = Vector2(390, 150)
 	summary_panel.custom_minimum_size = Vector2(480, 340)
@@ -477,8 +509,15 @@ func _process(delta: float) -> void:
 		return
 
 	player_avatar.position.y = 340 + sin(Time.get_ticks_msec() * 0.005) * 2.5
+	if cashier_avatar.visible:
+		cashier_avatar.position.y = 260 + cos(Time.get_ticks_msec() * 0.005) * 2.0
 
-	# Siklus Cuaca Dinamis
+	# Timer Viral Boost Food Vlogger
+	if viral_boost_timer > 0.0:
+		viral_boost_timer -= delta
+		if viral_boost_timer <= 0.0:
+			lbl_status.text = "Efek viral Food Vlogger selesai. Jualan kembali normal."
+
 	weather_timer -= delta
 	if weather_timer <= 0.0:
 		is_raining = not is_raining
@@ -491,9 +530,13 @@ func _process(delta: float) -> void:
 			if drop.position.y > 720:
 				drop.position = Vector2(randf_range(0, 1400), -20)
 
-	# Kedatangan Pembeli & Ojol
 	if cust_phase == CustomerPhase.NONE and waiting_orders.size() < 2:
-		spawn_timer -= delta * (1.8 if is_raining else 1.0)
+		var rate = 1.0
+		if is_raining:
+			rate *= 1.6
+		if viral_boost_timer > 0.0:
+			rate *= 1.8
+		spawn_timer -= delta * rate
 		if spawn_timer <= 0.0:
 			start_customer_visit()
 
@@ -516,14 +559,12 @@ func _process(delta: float) -> void:
 			cust_phase = CustomerPhase.NONE
 			check_end_of_day()
 
-	# Timer Kesabaran Pesanan Pertama di Antrean
 	if waiting_orders.size() > 0 or is_any_wok_busy():
 		customer_patience -= delta
 		progress_patience.value = customer_patience
 		if customer_patience <= 0.0:
 			handle_patience_timeout()
 
-	# Update Proses Memasak di Kedua Wajan
 	for i in range(2):
 		var w = woks[i]
 		if w["state"] == WokState.COOKING or w["state"] == WokState.READY:
@@ -552,7 +593,7 @@ func update_weather_visuals() -> void:
 		drop.visible = is_raining
 	if is_raining:
 		bg_rect.color = Color("#161B22")
-		lbl_weather.text = "Cuaca: HUJAN DERAS (Pembeli Ramai +Bonus!)"
+		lbl_weather.text = "Cuaca: HUJAN (+Bonus)"
 		lbl_weather.add_theme_color_override("font_color", Color("#4CC9F0"))
 	else:
 		bg_rect.color = Color("#241B15")
@@ -566,21 +607,34 @@ func start_customer_visit() -> void:
 		spawn_timer = 3.0
 		return
 
-	var is_ojol = randf() < 0.25
-	var cname = "Abang Ojol (SeblakFood)" if is_ojol else customer_names[randi() % customer_names.size()]
-	var col = Color("#2EC4B6") if is_ojol else shirt_colors[randi() % shirt_colors.size()]
+	var roll = randf()
+	var is_vlogger = roll < 0.15
+	var is_ojol = (not is_vlogger) and (roll < 0.38)
+	
+	var cname = ""
+	var col = Color("#457B9D")
+	if is_vlogger:
+		cname = "FOOD VLOGGER VIRAL"
+		col = Color("#FFD700")
+	elif is_ojol:
+		cname = "Abang Ojol (SeblakFood)"
+		col = Color("#2EC4B6")
+	else:
+		cname = customer_names[randi() % customer_names.size()]
+		col = shirt_colors[randi() % shirt_colors.size()]
 	
 	customer_avatar.get_child(1).color = col
 	customer_avatar.get_child(4).text = cname
 	customer_avatar.position = Vector2(160, 530)
 	customer_avatar.visible = true
-	cust_bubble.text = "Order Ojol!" if is_ojol else "Permisi..."
+	cust_bubble.text = "Review Konten!" if is_vlogger else ("Order Ojol!" if is_ojol else "Permisi...")
 	target_pos = Vector2(465, 315)
 	cust_phase = CustomerPhase.WALKING_TO_BUFFET
 	
 	current_order = SeblakOrder.new()
 	current_order.cust_name = cname
 	current_order.is_ojol = is_ojol
+	current_order.is_vlogger = is_vlogger
 
 func finalize_customer_order() -> void:
 	var available = GameManager.get_available_toppings()
@@ -590,7 +644,7 @@ func finalize_customer_order() -> void:
 
 	current_order.chili_req = randi_range(0, 5)
 	current_order.items = []
-	var base_price = 2000 + (1000 if is_raining else 0)
+	var base_price = 2000 + (1000 if is_raining else 0) + (GameManager.decor_level * 500)
 	current_order.price = base_price
 
 	var item_count = randi_range(2, min(4, available.size()))
@@ -603,6 +657,10 @@ func finalize_customer_order() -> void:
 
 	if current_order.is_ojol:
 		current_order.price = int(current_order.price * 1.4)
+	if current_order.is_vlogger:
+		current_order.price = int(current_order.price * 1.8)
+	if viral_boost_timer > 0.0:
+		current_order.price *= 2
 
 	waiting_orders.append(current_order)
 	if waiting_orders.size() == 1 and not is_any_wok_busy():
@@ -614,7 +672,10 @@ func finalize_customer_order() -> void:
 	cust_phase = CustomerPhase.WAITING_FOOD
 	spawn_timer = 3.5
 	refresh_queue_ui()
-	lbl_status.text = "Pesanan %s siap dimasak! Pilih Wajan!" % current_order.cust_name
+	if current_order.is_vlogger:
+		lbl_status.text = "AWAS! Food Vlogger datang! Masak pedas Lvl %d agar VIRAL!" % current_order.chili_req
+	else:
+		lbl_status.text = "Pesanan %s siap dimasak! Pilih Wajan!" % current_order.cust_name
 
 func refresh_queue_ui() -> void:
 	if waiting_orders.size() == 0:
@@ -623,9 +684,10 @@ func refresh_queue_ui() -> void:
 	var lines = []
 	for idx in range(waiting_orders.size()):
 		var o: SeblakOrder = waiting_orders[idx]
-		lines.append("[%d] %s (Pedas Lvl %d | Rp %d)
+		var tag = " [VIRAL!]" if o.is_vlogger else (" [OJOL]" if o.is_ojol else "")
+		lines.append("[%d] %s%s (Pedas Lvl %d | Rp %d)
     Topping: %s" % [
-			idx + 1, o.cust_name, o.chili_req, o.price, ", ".join(o.items)
+			idx + 1, o.cust_name, tag, o.chili_req, o.price, ", ".join(o.items)
 		])
 	lbl_queue_info.text = "
 
@@ -680,10 +742,9 @@ func _on_wok_action_pressed(w_idx: int) -> void:
 		ready_to_pay_order = w["order"]
 		ready_chili_used = w["chili"]
 		reset_single_wok(w_idx)
-		open_cashier_modal()
+		process_serving()
 
 	elif w["state"] == WokState.BURNT:
-		# Masak ulang pesanan yang gosong
 		var retry_ord: SeblakOrder = w["order"]
 		w["state"] = WokState.COOKING
 		w["progress"] = 0.0
@@ -694,17 +755,30 @@ func _on_wok_action_pressed(w_idx: int) -> void:
 		AudioManager.play_sizzle()
 		lbl_status.text = "Memasak ulang pesanan %s!" % retry_ord.cust_name
 
-func open_cashier_modal() -> void:
+func process_serving() -> void:
 	final_bill_amount = ready_to_pay_order.price
 	var note = ""
-	if ready_chili_used == ready_to_pay_order.chili_req:
+	var perfect_spice = (ready_chili_used == ready_to_pay_order.chili_req)
+	
+	if perfect_spice:
 		final_bill_amount += 2000
 		GameManager.reputation = min(100, GameManager.reputation + 2)
 		note = "Pedas PAS Level %d! (+Tip Rp 2.000)" % ready_to_pay_order.chili_req
+		if ready_to_pay_order.is_vlogger:
+			viral_boost_timer = 22.0
+			note += "
+WARUNG VIRAL 20 DETIK! HARGA 2X LIPAT!"
 	else:
 		final_bill_amount = int(final_bill_amount * 0.7)
 		GameManager.reputation = max(0, GameManager.reputation - 5)
 		note = "Salah Level Pedas! (Diskon 30%%)"
+
+	# Jika Karyawan Kasir sudah direkrut, pembayaran otomatis diproses!
+	if GameManager.cashier_hired:
+		finish_payment(true)
+		lbl_status.text = "[AUTO-KASIR] %s membayar Rp %d! %s" % [ready_to_pay_order.cust_name, final_bill_amount, note.replace("
+", " ")]
+		return
 
 	is_qris_payment = ready_to_pay_order.is_ojol or (GameManager.qris_unlocked and (randf() < 0.55))
 	cashier_panel.visible = true
@@ -756,7 +830,8 @@ func finish_payment(is_correct: bool) -> void:
 		GameManager.add_money(final_bill_amount, true)
 		AudioManager.play_cash_register()
 		cust_bubble.text = "Mantap Kang!"
-		lbl_status.text = "Pembayaran diterima! +Rp %d masuk kas." % final_bill_amount
+		if not GameManager.cashier_hired:
+			lbl_status.text = "Pembayaran diterima! +Rp %d masuk kas." % final_bill_amount
 	else:
 		var penalty_pay = max(0, final_bill_amount - 2000)
 		GameManager.add_money(penalty_pay, true)
@@ -785,15 +860,17 @@ func handle_patience_timeout() -> void:
 func check_end_of_day() -> void:
 	if GameManager.daily_customers_served >= GameManager.customers_per_day and waiting_orders.size() == 0 and not is_any_wok_busy():
 		day_ended = true
-		var net_profit = GameManager.daily_revenue - GameManager.daily_expense - 15000
+		var rent_cost = 15000 + (5000 if GameManager.cashier_hired else 0)
+		var net_profit = GameManager.daily_revenue - GameManager.daily_expense - rent_cost
 		lbl_summary_text.text = "Hari ke-%d Selesai!
+Status: %s
 
 Pendapatan Seblak: +Rp %d
 Belanja & Upgrade: -Rp %d
-Sewa Lapak & Gas: -Rp 15.000
+Sewa Lapak & Gaji: -Rp %d
 
 Laba Bersih: Rp %d" % [
-			GameManager.day, GameManager.daily_revenue, GameManager.daily_expense, net_profit
+			GameManager.day, GameManager.get_shop_rank(), GameManager.daily_revenue, GameManager.daily_expense, rent_cost, net_profit
 		]
 		summary_panel.visible = true
 
@@ -817,17 +894,36 @@ func reset_single_wok(w_idx: int) -> void:
 
 func update_hud() -> void:
 	lbl_money.text = "Kas: Rp %d" % GameManager.money
-	lbl_day.text = "Hari %d (%d/%d) | Rep: %d%%" % [GameManager.day, GameManager.daily_customers_served, GameManager.customers_per_day, GameManager.reputation]
+	lbl_day.text = "Hari %d (%d/%d) | Rep %d%%" % [GameManager.day, GameManager.daily_customers_served, GameManager.customers_per_day, GameManager.reputation]
+	lbl_rank.text = "[%s]" % GameManager.get_shop_rank()
 	
+	# Visual Dekorasi & Karyawan
+	glass_showcase.visible = (GameManager.decor_level >= 2)
+	neon_sign_bg.visible = (GameManager.decor_level >= 3)
+	cashier_avatar.visible = GameManager.cashier_hired
+
 	if GameManager.second_wok_unlocked:
-		btn_unlock_wok2.text = "Wajan #2: SUDAH AKTIF"
+		btn_unlock_wok2.text = "Wajan #2: AKTIF"
 		btn_unlock_wok2.disabled = true
 		wok_ui[1]["panel"].modulate = Color(1, 1, 1, 1)
 	else:
 		btn_unlock_wok2.text = "Beli Wajan #2 (Rp 60.000)"
 		wok_ui[1]["panel"].modulate = Color(0.6, 0.6, 0.6, 0.85)
 
-	btn_upgrade_stove.text = "Upgrade Api Kompor Lvl %d (Rp %d)" % [GameManager.stove_upgrade_level + 1, GameManager.stove_upgrade_level * 35000]
+	if GameManager.cashier_hired:
+		btn_hire_cashier.text = "Karyawan Kasir: AKTIF"
+		btn_hire_cashier.disabled = true
+	else:
+		btn_hire_cashier.text = "Rekrut Kasir Otomatis (Rp 120.000)"
+
+	if GameManager.decor_level >= 3:
+		btn_upgrade_decor.text = "Dekorasi Warung: MAKSIMAL (Neon Box)"
+		btn_upgrade_decor.disabled = true
+	else:
+		var next_name = "Etalase Kaca" if GameManager.decor_level == 1 else "Neon Box Viral"
+		btn_upgrade_decor.text = "Upgrade %s (Rp %d)" % [next_name, GameManager.decor_level * 50000]
+
+	btn_upgrade_stove.text = "Api Kompor Lvl %d (Rp %d)" % [GameManager.stove_upgrade_level + 1, GameManager.stove_upgrade_level * 35000]
 	btn_upgrade_fan.text = "Kipas Angin Lvl %d (Rp %d)" % [GameManager.fan_upgrade_level + 1, GameManager.fan_upgrade_level * 25000]
 	if GameManager.qris_unlocked:
 		btn_unlock_qris.text = "Pembayaran QRIS: AKTIF"
@@ -843,7 +939,7 @@ func refresh_restock_shop() -> void:
 		var item = GameManager.toppings[i]
 		var pack_cost = int(item["buy_price"]) * 5
 		var btn = Button.new()
-		btn.custom_minimum_size = Vector2(320, 38)
+		btn.custom_minimum_size = Vector2(320, 36)
 		btn.text = "%s (Stok: %d) | +5: Rp %d" % [item["name"], item["stock"], pack_cost]
 		btn.pressed.connect(func(): _on_buy_stock(i))
 		restock_container.add_child(btn)
@@ -859,10 +955,26 @@ func _on_buy_stock(index: int) -> void:
 func _on_unlock_wok2_pressed() -> void:
 	if GameManager.unlock_second_wok():
 		AudioManager.play_cash_register()
-		lbl_status.text = "Wajan #2 terbuka! Kini bisa masak 2 pesanan sekaligus!"
+		lbl_status.text = "Wajan #2 terbuka!"
 	else:
 		AudioManager.play_error()
-		lbl_status.text = "Kas belum cukup (Butuh Rp 60.000)!"
+		lbl_status.text = "Kas belum cukup!"
+
+func _on_hire_cashier_pressed() -> void:
+	if GameManager.hire_cashier():
+		AudioManager.play_cash_register()
+		lbl_status.text = "Karyawan Kasir direkrut! Pembayaran kini otomatis!"
+	else:
+		AudioManager.play_error()
+		lbl_status.text = "Kas belum cukup (Butuh Rp 120.000)!"
+
+func _on_upgrade_decor_pressed() -> void:
+	if GameManager.upgrade_decor():
+		AudioManager.play_cash_register()
+		lbl_status.text = "Dekorasi warung di-upgrade! Harga dasar seblak naik!"
+	else:
+		AudioManager.play_error()
+		lbl_status.text = "Kas belum cukup!"
 
 func _on_upgrade_stove_pressed() -> void:
 	if GameManager.upgrade_stove():
@@ -875,7 +987,7 @@ func _on_upgrade_stove_pressed() -> void:
 func _on_upgrade_fan_pressed() -> void:
 	if GameManager.upgrade_fan():
 		AudioManager.play_cash_register()
-		lbl_status.text = "Kipas angin dipasang! Pembeli lebih sabar!"
+		lbl_status.text = "Kipas angin dipasang!"
 	else:
 		AudioManager.play_error()
 		lbl_status.text = "Kas belum cukup!"
