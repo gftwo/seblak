@@ -1,0 +1,53 @@
+name: Build Seblak Prasmanan APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+env:
+  GODOT_VERSION: 4.3
+  EXPORT_NAME: SeblakPrasmananSimulator
+
+jobs:
+  build-android:
+    name: Export Android Debug APK
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.3
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Export Templates & Android Keystore
+        run: |
+          mkdir -p ~/.local/share/godot
+          cp -r /root/.local/share/godot/export_templates ~/.local/share/godot/
+          mkdir -p ~/.android
+          keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          mkdir -p ~/.config/godot
+          JAVA_PATH=$(dirname $(dirname $(readlink -f $(which javac))))
+          cat <<EOF > ~/.config/godot/editor_settings-4.3.tres
+          [gd_resource type="EditorSettings" format=3]
+          [resource]
+          export/android/java_sdk_path = "$JAVA_PATH"
+          export/android/android_sdk_path = "/usr/lib/android-sdk"
+          export/android/debug_keystore = "$HOME/.android/debug.keystore"
+          export/android/debug_keystore_user = "androiddebugkey"
+          export/android/debug_keystore_pass = "android"
+          EOF
+
+      - name: Prepare Export Directory
+        run: mkdir -v -p build/android
+
+      - name: Export APK
+        run: |
+          cd project
+          godot --headless --verbose --export-debug "Android" ../build/android/${EXPORT_NAME}.apk
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SeblakPrasmanan-APK
+          path: build/android/${EXPORT_NAME}.apk

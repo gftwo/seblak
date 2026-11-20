@@ -4,10 +4,10 @@ signal money_changed(new_money: int)
 signal stock_updated()
 signal day_changed(new_day: int)
 
-var money: int = 50000 # Modal awal Rp 50.000
+var money: int = 50000
 var day: int = 1
 var reputation: int = 100
-var stove_upgrade_level: int = 1 # Kecepatan masak
+var stove_upgrade_level: int = 1
 var toppings: Array = []
 
 func _ready() -> void:
@@ -51,7 +51,7 @@ func restock_topping(index: int) -> bool:
 	if index < 0 or index >= toppings.size():
 		return false
 	var item = toppings[index]
-	var pack_cost = item["buy_price"] * 5 # Beli 5 porsi sekaligus
+	var pack_cost = item["buy_price"] * 5
 	if spend_money(pack_cost):
 		item["stock"] += 5
 		emit_signal("stock_updated")
