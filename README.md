@@ -1,7 +1,8 @@
-# Seblak Prasmanan Simulator (2.5D Mobile) - v1.1
+# Seblak Prasmanan Simulator (2.5D Mobile) - v3.0
 
-## Cara Build APK Otomatis via GitHub Actions:
-1. Extract file ZIP ini dan upload seluruh isinya ke repository GitHub Anda.
-2. Buka tab **Actions** di repository GitHub Anda.
-3. Tunggu workflow **Build Seblak Prasmanan APK** selesai hingga muncul centang hijau.
-4. Unduh file APK di bagian **Artifacts** paling bawah halaman workflow.
+## Fitur Lengkap v3.0:
+- Procedural ASMR Audio Engine (Suara tumis, lonceng matang, kasir, ulekan cabai)
+- Sistem Cuaca Dinamis (Hujan Deras meningkatkan keramaian & bonus pendapatan)
+- Ekspansi 2 Wajan (Multi-tasking memasak 2 mangkuk prasmanan sekaligus)
+- Pesanan Khusus Abang Ojol (SeblakFood) dengan bayaran 1.4x lipat
+- Karakter 2.5D Isometrik, Kasir Kembalian/QRIS, & Auto-Save Permanen

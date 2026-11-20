@@ -7,6 +7,8 @@
     { "id": "dumpling_keju", "name": "Dumpling Keju", "buy_price": 2500, "sell_price": 5000, "stock": 10, "color": "#FFE66D" },
     { "id": "chikuwa", "name": "Chikuwa Mini", "buy_price": 2000, "sell_price": 4000, "stock": 10, "color": "#D4A373" },
     { "id": "cuanki_lidah", "name": "Cuanki Lidah", "buy_price": 1000, "sell_price": 2500, "stock": 15, "color": "#FAEDCD" },
-    { "id": "telur_ayam", "name": "Telur Kocok", "buy_price": 2000, "sell_price": 4000, "stock": 12, "color": "#F77F00" }
+    { "id": "telur_ayam", "name": "Telur Kocok", "buy_price": 2000, "sell_price": 4000, "stock": 12, "color": "#F77F00" },
+    { "id": "sosis_bakar", "name": "Sosis Jumbo", "buy_price": 2000, "sell_price": 4500, "stock": 10, "color": "#D62828" },
+    { "id": "jamur_enoki", "name": "Jamur Enoki", "buy_price": 1500, "sell_price": 3500, "stock": 12, "color": "#F8F9FA" }
   ]
 }
