@@ -1,0 +1,12 @@
+{
+  "toppings": [
+    { "id": "kerupuk_orange", "name": "Kerupuk Orange", "buy_price": 1000, "sell_price": 2500, "stock": 15, "color": "#FF6B35" },
+    { "id": "mie_kuning", "name": "Mie Kuning", "buy_price": 1500, "sell_price": 3000, "stock": 12, "color": "#FFD166" },
+    { "id": "ceker_ayam", "name": "Ceker Empuk", "buy_price": 2000, "sell_price": 4500, "stock": 10, "color": "#F4A261" },
+    { "id": "tulang_rangu", "name": "Tulang Rangu", "buy_price": 2500, "sell_price": 5500, "stock": 8, "color": "#E76F51" },
+    { "id": "dumpling_keju", "name": "Dumpling Keju", "buy_price": 2500, "sell_price": 5000, "stock": 10, "color": "#FFE66D" },
+    { "id": "chikuwa", "name": "Chikuwa Mini", "buy_price": 2000, "sell_price": 4000, "stock": 10, "color": "#D4A373" },
+    { "id": "cuanki_lidah", "name": "Cuanki Lidah", "buy_price": 1000, "sell_price": 2500, "stock": 15, "color": "#FAEDCD" },
+    { "id": "telur_ayam", "name": "Telur Kocok", "buy_price": 2000, "sell_price": 4000, "stock": 12, "color": "#F77F00" }
+  ]
+}
